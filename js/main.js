@@ -12,6 +12,7 @@
         z: 0,
         pitch: 0,
         yaw: 0,
+        roll: 0, // 틸트 효과를 위한 roll 추가
         fov: Math.PI / 3
     };
 
@@ -20,6 +21,10 @@
 
     // 키보드 입력 상태
     const keys = { w: false, a: false, s: false, d: false };
+
+    // 입력 버퍼 (리듬/조작 메커니즘)
+    const inputBuffer = [];
+    const maxBufferSize = 10;
 
     // 플레이어 이동 로직 (관성)
     const velocity = { x: 0, z: 0 };
@@ -58,14 +63,19 @@
         // 4. 원근 투영
         const fovScale = 1 / Math.tan(camera.fov / 2);
         
-        // 종횡비 반영 없이 화면의 짧은 쪽 기준으로 스케일링하거나 높이 기준으로 통일
-        const px = (rx / fz) * fovScale;
-        const py = (ry / fz) * fovScale;
+        let px = (rx / fz) * fovScale;
+        let py = (ry / fz) * fovScale;
+
+        // 카메라 Roll (Z축 회전/틸트) 적용
+        const cosRoll = Math.cos(camera.roll);
+        const sinRoll = Math.sin(camera.roll);
+        const rolledPx = px * cosRoll - py * sinRoll;
+        const rolledPy = px * sinRoll + py * cosRoll;
 
         // 5. 화면 중앙 기준 픽셀 좌표계로 변환
         return {
-            x: width * 0.5 + px * height * 0.5,
-            y: height * 0.5 - py * height * 0.5,
+            x: width * 0.5 + rolledPx * height * 0.5,
+            y: height * 0.5 - rolledPy * height * 0.5,
             scale: fovScale / fz
         };
     }
@@ -81,10 +91,29 @@
         if (camera.pitch < -maxPitch) camera.pitch = -maxPitch;
     }
 
+    function onMouseClick(event) {
+        if (document.pointerLockElement !== canvas) return;
+        
+        // event.button: 0 (LMB), 2 (RMB)
+        const buttonType = event.button === 0 ? 'LMB' : (event.button === 2 ? 'RMB' : 'OTHER');
+        if (buttonType === 'OTHER') return;
+
+        const timestamp = performance.now();
+        inputBuffer.push({ type: buttonType, time: timestamp });
+
+        if (inputBuffer.length > maxBufferSize) {
+            inputBuffer.shift();
+        }
+        
+        console.log(`Input registered: ${buttonType} at ${timestamp.toFixed(2)}ms`);
+    }
+
     function initPointerLock() {
-        canvas.addEventListener('click', () => {
+        canvas.addEventListener('mousedown', (e) => {
             if (document.pointerLockElement !== canvas) {
                 canvas.requestPointerLock();
+            } else {
+                onMouseClick(e);
             }
         });
 
@@ -159,6 +188,11 @@
         // 온레일 트랙 범위 이탈 방지 (-3 ~ 3)
         if (camera.x < -3) { camera.x = -3; velocity.x = 0; }
         if (camera.x > 3) { camera.x = 3; velocity.x = 0; }
+
+        // 카메라 틸트(Roll) 효과 적용: 이동 방향(velocity.x) 및 마우스 회전(yaw 변화량)에 비례
+        const targetRoll = -velocity.x * 0.05; 
+        // 부드러운 틸트 복귀
+        camera.roll += (targetRoll - camera.roll) * 0.1;
     }
 
     function draw() {
@@ -178,7 +212,6 @@
         for (let laneX of track.lanes) {
             ctx.beginPath();
             let hasStarted = false;
-            // z = startZ - segmentLength 부터 그리면 화면 아래쪽도 채워짐
             for (let z = startZ - track.segmentLength; z <= endZ; z += track.segmentLength) {
                 const p = project3DTo2D({ x: laneX, y: 0, z: z }, canvas.width, canvas.height);
                 if (p) {
@@ -221,6 +254,9 @@
         console.log('ZeroBaek 게임 초기화');
         canvas = document.getElementById('gameCanvas');
         ctx = canvas.getContext('2d');
+
+        // 마우스 우클릭 컨텍스트 메뉴 방지 (RMB 인식용)
+        window.addEventListener('contextmenu', e => e.preventDefault());
 
         // 이벤트 리스너 등록
         window.addEventListener('resize', resizeCanvas);
