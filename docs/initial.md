@@ -54,15 +54,15 @@
 
 ---
 
-## 6. 기술적 구현 전략 (Technical Specs: Godot Engine)
-* **Engine:** Godot Engine 4.x (3D 환경, 포워드+ 렌더링).
+## 6. 기술적 구현 전략 (Technical Specs: HTML5/JS)
+* **Engine:** HTML5 Canvas, Vanilla JavaScript, CSS3.
 * **시점 (Camera View):** **절대적인 1인칭 시점 (First-Person Perspective)** 유지. 카메라 흔들림(Head Bobbing)과 틸트를 통해 달리는 무게감을 극대화.
 * **개발 범위를 줄이는 핵심 타협점 (On-Rails & Rhythm 러너 형태):**
-  * 자유롭게 경기장을 돌아다니는 풀 3D 물리 시뮬레이션을 포기하고, 주인공이 골대를 향해 전진하는 **'온레일(On-Rails) 구조'** 채택.
+  * 자유롭게 경기장을 돌아다니는 풀 3D 물리 시뮬레이션을 포기하고, 주인공이 골대를 향해 전진하는 **'온레일(On-Rails) 구조'** 채택 (Mode 7 스타일 가짜 3D 렌더링).
   * 유저는 앞뒤 이동보다는 다가오는 수비수(장애물)의 타이밍에 맞춰 WASD(무게 중심 이동)와 LMB/RMB(리듬 드리블) 입력에만 집중.
 * **Physics & Control (물리와 조작):**
-  * 풀 3D 충돌(RigidBody) 대신, 정해진 트랙을 달리는 `Path3D`와 `PathFollow3D`를 활용하여 연출의 일관성 확보.
-  * 카메라 암(Camera Arm)과 시야각(FOV) 변화를 통해 가속도와 심리적 압박감을 표현.
+  * 풀 3D 충돌 대신, Z축 원근 투영(Perspective Projection) 수학 공식을 활용하여 2D 캔버스에 원근감 표현 및 충돌 판정 구현.
+  * 시야각(FOV) 변화 로직을 직접 연산하여 가속도와 심리적 압박감을 표현.
 * **AI (수비수 및 반응형 동료):**
-  * **수비수:** 유기적인 AI 대신, 특정 타이밍에 정해진 애니메이션으로 태클을 들어오는 '타이밍 퍼즐/장애물'로 구현.
-  * **동료:** 3D 모델링이 아닌, 화면 양옆 엣지 부분의 파티클(`GPUParticles3D`)과 포스트 프로세싱(Vignette, Color Correction)으로 온기와 존재감을 묘사하여 리소스 절약.
+  * **수비수:** 유기적인 AI 대신, 특정 타이밍에 맞춰 다가오는 '타이밍 퍼즐/장애물'로 2D 스프라이트 렌더링 구현.
+  * **동료:** 화면 양옆 가장자리의 CSS box-shadow 또는 Canvas 그라데이션과 색상 필터(CSS Filter)로 온기와 존재감을 묘사하여 리소스 절약.
