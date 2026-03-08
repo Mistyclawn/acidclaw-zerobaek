@@ -26,6 +26,18 @@
     const inputBuffer = [];
     const maxBufferSize = 10;
 
+    // 리듬 및 판정 시스템
+    const bpm = 120; // 120 Beats Per Minute
+    const beatInterval = 60000 / bpm; // ms per beat (500ms)
+    let nextBeatTime = performance.now() + beatInterval;
+    
+    let combo = 0;
+    let lastJudgment = '';
+    let judgmentTimer = 0;
+    
+    let baseSpeed = 0.1;
+    let currentSpeed = baseSpeed;
+
     // 플레이어 이동 로직 (관성)
     const velocity = { x: 0, z: 0 };
     const acceleration = 0.05;
@@ -105,7 +117,44 @@
             inputBuffer.shift();
         }
         
-        console.log(`Input registered: ${buttonType} at ${timestamp.toFixed(2)}ms`);
+        // 판정 로직
+        const prevBeatTime = nextBeatTime - beatInterval;
+        const diffNext = Math.abs(nextBeatTime - timestamp);
+        const diffPrev = Math.abs(prevBeatTime - timestamp);
+        const closestDiff = Math.min(diffNext, diffPrev);
+        
+        // 판정 기준 (ms)
+        const PERFECT = 50;
+        const GREAT = 100;
+        const GOOD = 150;
+        
+        if (closestDiff <= PERFECT) {
+            lastJudgment = 'PERFECT';
+            combo++;
+            currentSpeed += 0.05; // 속도 증가
+        } else if (closestDiff <= GREAT) {
+            lastJudgment = 'GREAT';
+            combo++;
+            currentSpeed += 0.02;
+        } else if (closestDiff <= GOOD) {
+            lastJudgment = 'GOOD';
+            combo = 0; // 콤보 초기화
+            currentSpeed = baseSpeed;
+        } else {
+            lastJudgment = 'MISS';
+            combo = 0;
+            currentSpeed = baseSpeed * 0.5; // 속도 감소 페널티
+        }
+        
+        judgmentTimer = 1000; // 1초간 텍스트 표시
+        
+        // 속도 상한 및 하한
+        const maxSpeed = baseSpeed * 3;
+        const minSpeed = 0.05;
+        if (currentSpeed > maxSpeed) currentSpeed = maxSpeed;
+        if (currentSpeed < minSpeed) currentSpeed = minSpeed;
+
+        console.log(`Input: ${buttonType}, Diff: ${closestDiff.toFixed(2)}ms, Judgment: ${lastJudgment}, Combo: ${combo}`);
     }
 
     function initPointerLock() {
@@ -148,6 +197,16 @@
     }
 
     function update(deltaTime) {
+        // 리듬 타이머 업데이트
+        const now = performance.now();
+        if (now > nextBeatTime) {
+            nextBeatTime += beatInterval;
+        }
+        
+        if (judgmentTimer > 0) {
+            judgmentTimer -= deltaTime;
+        }
+
         // 카메라의 시선 방향 (yaw) 기준 전진/후진, 좌우 이동 벡터 계산
         let forwardX = -Math.sin(camera.yaw);
         let forwardZ = Math.cos(camera.yaw);
@@ -183,7 +242,7 @@
 
         // 카메라 위치 업데이트
         camera.x += velocity.x;
-        camera.z += velocity.z;
+        camera.z += velocity.z + (currentSpeed * (deltaTime / 16.66));
 
         // 온레일 트랙 범위 이탈 방지 (-3 ~ 3)
         if (camera.x < -3) { camera.x = -3; velocity.x = 0; }
@@ -238,6 +297,47 @@
                 ctx.stroke();
             }
         }
+
+        // 3. UI / HUD 렌더링 (2D 오버레이)
+        drawHUD();
+    }
+
+    function drawHUD() {
+        ctx.save();
+        
+        // 콤보 표시
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(`COMBO: ${combo}`, 20, 40);
+        ctx.fillText(`SPEED: ${currentSpeed.toFixed(2)}`, 20, 70);
+
+        // 판정 결과 표시 (가운데 상단, 페이드 아웃 효과)
+        if (judgmentTimer > 0) {
+            const alpha = Math.min(1, judgmentTimer / 500); // 서서히 사라짐
+            ctx.globalAlpha = alpha;
+            
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            
+            let color = '#fff';
+            if (lastJudgment === 'PERFECT') color = '#00ffff';
+            else if (lastJudgment === 'GREAT') color = '#00ff00';
+            else if (lastJudgment === 'GOOD') color = '#ffff00';
+            else if (lastJudgment === 'MISS') color = '#ff0000';
+            
+            ctx.fillStyle = color;
+            ctx.fillText(lastJudgment, canvas.width / 2, canvas.height / 3);
+            
+            // 콤보 애니메이션 효과
+            if (combo > 1) {
+                ctx.font = 'bold 20px Arial';
+                ctx.fillStyle = '#fff';
+                ctx.fillText(`${combo} COMBO!`, canvas.width / 2, canvas.height / 3 + 40);
+            }
+        }
+        
+        ctx.restore();
     }
 
     function gameLoop(timestamp) {
