@@ -18,6 +18,21 @@
     // 마우스 감도
     const mouseSensitivity = 0.002;
 
+    // 키보드 입력 상태
+    const keys = { w: false, a: false, s: false, d: false };
+
+    // 플레이어 이동 로직 (관성)
+    const velocity = { x: 0, z: 0 };
+    const acceleration = 0.05;
+    const friction = 0.85;
+
+    // 트랙 데이터 (3레인, 온레일)
+    const track = {
+        lanes: [-2, 0, 2],
+        segmentLength: 5,
+        renderDistance: 100 // z축 렌더링 거리
+    };
+
     // 3D 공간의 (X, Y, Z) 좌표를 2D 화면 좌표로 변환하는 원근 투영(Perspective Projection) 함수
     function project3DTo2D(p, width, height) {
         // 1. 카메라 이동 적용
@@ -82,31 +97,113 @@
         });
     }
 
+    function initKeyboard() {
+        window.addEventListener('keydown', (e) => {
+            if(e.code === 'KeyW' || e.code === 'ArrowUp') keys.w = true;
+            if(e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = true;
+            if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = true;
+            if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if(e.code === 'KeyW' || e.code === 'ArrowUp') keys.w = false;
+            if(e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = false;
+            if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = false;
+            if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = false;
+        });
+    }
+
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        // 해상도 변경 시 필요한 추가 처리 로직
     }
 
     function update(deltaTime) {
-        // 게임 상태 업데이트 로직 (사용자 입력 처리, 이동, 등)
+        // 카메라의 시선 방향 (yaw) 기준 전진/후진, 좌우 이동 벡터 계산
+        let forwardX = -Math.sin(camera.yaw);
+        let forwardZ = Math.cos(camera.yaw);
+        
+        let rightX = Math.cos(camera.yaw);
+        let rightZ = Math.sin(camera.yaw);
+
+        let inputX = 0;
+        let inputZ = 0;
+
+        if (keys.w) inputZ += 1;
+        if (keys.s) inputZ -= 1;
+        if (keys.a) inputX -= 1;
+        if (keys.d) inputX += 1;
+
+        // 대각선 이동 시 속도 정규화
+        const length = Math.sqrt(inputX * inputX + inputZ * inputZ);
+        if (length > 0) {
+            inputX /= length;
+            inputZ /= length;
+        }
+
+        // 가속도 적용 (시선 방향 기반)
+        const accelX = (forwardX * inputZ + rightX * inputX) * acceleration;
+        const accelZ = (forwardZ * inputZ + rightZ * inputX) * acceleration;
+
+        velocity.x += accelX;
+        velocity.z += accelZ;
+
+        // 마찰력 (관성)
+        velocity.x *= friction;
+        velocity.z *= friction;
+
+        // 카메라 위치 업데이트
+        camera.x += velocity.x;
+        camera.z += velocity.z;
+
+        // 온레일 트랙 범위 이탈 방지 (-3 ~ 3)
+        if (camera.x < -3) { camera.x = -3; velocity.x = 0; }
+        if (camera.x > 3) { camera.x = 3; velocity.x = 0; }
     }
 
     function draw() {
-        // 화면 지우기
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // 그리기 로직 (테스트용 등)
+        // 화면 지우기 (배경)
         ctx.fillStyle = '#111';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // 다가오는 트랙(레일/그리드) 렌더링
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+        ctx.lineWidth = 2;
+        
+        // 현재 카메라 위치 기준으로 트랙 세그먼트 시작점 계산
+        const startZ = Math.floor(camera.z / track.segmentLength) * track.segmentLength;
+        const endZ = startZ + track.renderDistance;
 
-        // 테스트를 위해 투영된 좌표에 점 하나 그리기 (임시)
-        const testPoint = project3DTo2D({ x: 0, y: 1.5, z: 5 }, canvas.width, canvas.height);
-        if (testPoint) {
-            ctx.fillStyle = 'red';
+        // 1. 세로선 (레일/레인)
+        for (let laneX of track.lanes) {
             ctx.beginPath();
-            ctx.arc(testPoint.x, testPoint.y, 15 * testPoint.scale, 0, Math.PI * 2);
-            ctx.fill();
+            let hasStarted = false;
+            // z = startZ - segmentLength 부터 그리면 화면 아래쪽도 채워짐
+            for (let z = startZ - track.segmentLength; z <= endZ; z += track.segmentLength) {
+                const p = project3DTo2D({ x: laneX, y: 0, z: z }, canvas.width, canvas.height);
+                if (p) {
+                    if (!hasStarted) {
+                        ctx.moveTo(p.x, p.y);
+                        hasStarted = true;
+                    } else {
+                        ctx.lineTo(p.x, p.y);
+                    }
+                }
+            }
+            if (hasStarted) ctx.stroke();
+        }
+
+        // 2. 가로선 (세그먼트 구분선)
+        for (let z = startZ - track.segmentLength; z <= endZ; z += track.segmentLength) {
+            const pLeft = project3DTo2D({ x: track.lanes[0], y: 0, z: z }, canvas.width, canvas.height);
+            const pRight = project3DTo2D({ x: track.lanes[track.lanes.length - 1], y: 0, z: z }, canvas.width, canvas.height);
+            
+            if (pLeft && pRight) {
+                ctx.beginPath();
+                ctx.moveTo(pLeft.x, pLeft.y);
+                ctx.lineTo(pRight.x, pRight.y);
+                ctx.stroke();
+            }
         }
     }
 
@@ -125,12 +222,12 @@
         canvas = document.getElementById('gameCanvas');
         ctx = canvas.getContext('2d');
 
-        // 윈도우 리사이즈 이벤트 등록
+        // 이벤트 리스너 등록
         window.addEventListener('resize', resizeCanvas);
-        resizeCanvas(); // 초기 크기 설정
+        resizeCanvas();
 
-        // 마우스 시야 회전(Pointer Lock) 초기화
         initPointerLock();
+        initKeyboard();
 
         // 메인 게임 루프 시작
         requestAnimationFrame((timestamp) => {
@@ -139,6 +236,6 @@
         });
     }
 
-    // DOM 로드 완료 후 초기화 시작
+    // DOM 로드 완료 후 초기화
     window.addEventListener('DOMContentLoaded', init);
 })();
