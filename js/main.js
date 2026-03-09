@@ -50,6 +50,11 @@
         renderDistance: 100 // z축 렌더링 거리
     };
 
+    // 장애물(수비수) 데이터 구조 및 관리
+    const obstacles = [];
+    const obstacleSpawnRate = 30; // z축 거리당 생성 빈도
+    let nextObstacleZ = 50; // 첫 장애물 생성 z위치
+
     // 3D 공간의 (X, Y, Z) 좌표를 2D 화면 좌표로 변환하는 원근 투영(Perspective Projection) 함수
     function project3DTo2D(p, width, height) {
         // 1. 카메라 이동 적용
@@ -252,6 +257,25 @@
         const targetRoll = -velocity.x * 0.05; 
         // 부드러운 틸트 복귀
         camera.roll += (targetRoll - camera.roll) * 0.1;
+
+        // 장애물 생성 (플레이어 앞쪽으로 일정 거리마다 생성)
+        if (camera.z + track.renderDistance > nextObstacleZ) {
+            const laneIndex = Math.floor(Math.random() * track.lanes.length);
+            obstacles.push({
+                x: track.lanes[laneIndex],
+                y: 0,
+                z: nextObstacleZ,
+                width: 1.5,
+                height: 2.5,
+                color: '#ff0055' // 장애물(수비수) 임시 색상
+            });
+            nextObstacleZ += obstacleSpawnRate + Math.random() * 20;
+        }
+
+        // 지나친 장애물 메모리 해제
+        while(obstacles.length > 0 && obstacles[0].z < camera.z - 10) {
+            obstacles.shift();
+        }
     }
 
     function draw() {
@@ -298,7 +322,34 @@
             }
         }
 
-        // 3. UI / HUD 렌더링 (2D 오버레이)
+        // 3. 장애물 렌더링 (Z축 기준 정렬 후 그리기 - 멀리 있는 것부터)
+        // 화면에 보일 장애물만 필터링 후 복사하여 정렬
+        const visibleObstacles = obstacles.filter(obs => obs.z >= camera.z && obs.z <= endZ);
+        visibleObstacles.sort((a, b) => b.z - a.z); // 내림차순 (멀리 있는 것 먼저 렌더링)
+
+        for (let obs of visibleObstacles) {
+            const pBottom = project3DTo2D({ x: obs.x, y: obs.y, z: obs.z }, canvas.width, canvas.height);
+            const pTop = project3DTo2D({ x: obs.x, y: obs.y + obs.height, z: obs.z }, canvas.width, canvas.height);
+            
+            if (pBottom && pTop) {
+                // 너비는 원근감(scale)에 비례
+                // 기본 해상도 스케일링을 위해 500 곱함 (조정 가능)
+                const w = obs.width * 500 * pBottom.scale;
+                const h = pBottom.y - pTop.y;
+                
+                ctx.fillStyle = obs.color;
+                ctx.globalAlpha = 0.8;
+                ctx.fillRect(pTop.x - w / 2, pTop.y, w, h);
+                
+                // 테두리
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(pTop.x - w / 2, pTop.y, w, h);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        // 4. UI / HUD 렌더링 (2D 오버레이)
         drawHUD();
     }
 
