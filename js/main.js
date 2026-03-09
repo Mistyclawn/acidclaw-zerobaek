@@ -38,6 +38,36 @@
     let baseSpeed = 0.1;
     let currentSpeed = baseSpeed;
 
+    // 시각적 효과 업데이트 함수 (색온도, 화면 가장자리 글로우)
+    function updateVisualEffects() {
+        const canvasEl = document.getElementById('gameCanvas');
+        const vignette = document.getElementById('vignette');
+        
+        if (!canvasEl || !vignette) return;
+        
+        // 콤보가 올라갈수록 0.0에서 1.0으로 증가 (최대 20 콤보)
+        const intensity = Math.min(combo / 20, 1.0);
+        
+        // 필터 효과 보간 (Cold -> Golden)
+        // Cold: sepia(0.3) hue-rotate(180deg) saturate(1.2)
+        // Golden: sepia(0.8) hue-rotate(30deg) saturate(2.0)
+        const sepia = 0.3 + intensity * 0.5;
+        const hueRotate = 180 - intensity * 150;
+        const saturate = 1.2 + intensity * 0.8;
+        
+        canvasEl.style.filter = `sepia(${sepia}) hue-rotate(${hueRotate}deg) saturate(${saturate})`;
+        
+        // 화면 가장자리 글로우 (Cold Cyan -> Golden Orange)
+        // Cold: rgb(0, 255, 255)
+        // Golden: rgb(255, 215, 0)
+        const glowR = Math.floor(0 + intensity * 255);
+        const glowG = Math.floor(255 + intensity * (215 - 255));
+        const glowB = Math.floor(255 - intensity * 255);
+        const glowAlpha = 0.1 + intensity * 0.4;
+        
+        vignette.style.boxShadow = `inset 0 0 ${150 + intensity * 100}px rgba(${glowR}, ${glowG}, ${glowB}, ${glowAlpha})`;
+    }
+
     // 플레이어 이동 로직 (관성)
     const velocity = { x: 0, z: 0 };
     const acceleration = 0.05;
@@ -158,6 +188,8 @@
         const minSpeed = 0.05;
         if (currentSpeed > maxSpeed) currentSpeed = maxSpeed;
         if (currentSpeed < minSpeed) currentSpeed = minSpeed;
+
+        updateVisualEffects(); // 콤보 변화에 따른 시각적 효과 갱신
 
         console.log(`Input: ${buttonType}, Diff: ${closestDiff.toFixed(2)}ms, Judgment: ${lastJudgment}, Combo: ${combo}`);
     }
@@ -290,6 +322,7 @@
                         currentSpeed = baseSpeed * 0.3; // 속도 대폭 감소
                         lastJudgment = 'CRASH!';
                         judgmentTimer = 1000;
+                        updateVisualEffects(); // 패널티 시 글로우 효과 등 초기화
                     }
                 } else if (zDiff > 1.0) {
                     // 장애물을 무사히 통과함
