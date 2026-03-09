@@ -267,9 +267,35 @@
                 z: nextObstacleZ,
                 width: 1.5,
                 height: 2.5,
-                color: '#ff0055' // 장애물(수비수) 임시 색상
+                color: '#ff0055', // 장애물(수비수) 임시 색상
+                passed: false // 충돌 여부 추적
             });
             nextObstacleZ += obstacleSpawnRate + Math.random() * 20;
+        }
+
+        // 장애물 충돌 판정
+        for (let i = 0; i < obstacles.length; i++) {
+            const obs = obstacles[i];
+            if (!obs.passed) {
+                // 플레이어가 장애물(Z좌표)을 지나가는 순간의 앞뒤 판정 (1.0 기준)
+                const zDiff = camera.z - obs.z;
+                if (Math.abs(zDiff) < 1.0) {
+                    // X 좌표 (레인) 겹침 판정
+                    if (Math.abs(camera.x - obs.x) < 1.2) {
+                        obs.passed = true;
+                        obs.color = '#550000'; // 충돌 시 색상 어둡게 변경
+                        
+                        // 패널티 적용
+                        combo = 0;
+                        currentSpeed = baseSpeed * 0.3; // 속도 대폭 감소
+                        lastJudgment = 'CRASH!';
+                        judgmentTimer = 1000;
+                    }
+                } else if (zDiff > 1.0) {
+                    // 장애물을 무사히 통과함
+                    obs.passed = true;
+                }
+            }
         }
 
         // 지나친 장애물 메모리 해제
@@ -375,7 +401,7 @@
             if (lastJudgment === 'PERFECT') color = '#00ffff';
             else if (lastJudgment === 'GREAT') color = '#00ff00';
             else if (lastJudgment === 'GOOD') color = '#ffff00';
-            else if (lastJudgment === 'MISS') color = '#ff0000';
+            else if (lastJudgment === 'MISS' || lastJudgment === 'CRASH!') color = '#ff0000';
             
             ctx.fillStyle = color;
             ctx.fillText(lastJudgment, canvas.width / 2, canvas.height / 3);
