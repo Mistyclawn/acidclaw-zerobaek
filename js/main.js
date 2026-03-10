@@ -85,6 +85,47 @@
     let baseSpeed = 0.1;
     let currentSpeed = baseSpeed;
 
+    // Web Audio API (사운드 시스템)
+    let audioCtx = null;
+    
+    function initAudio() {
+        if (!audioCtx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+                audioCtx = new AudioContext();
+            }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function playFootstepSound(type) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        // LMB(왼발)와 RMB(오른발)의 피치 다르게 설정
+        if (type === 'LMB') {
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.1);
+        } else {
+            osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.1);
+        }
+        
+        osc.type = 'triangle';
+        
+        gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.1);
+    }
+
     // 시각적 효과 업데이트 함수 (색온도, 화면 가장자리 글로우)
     function updateVisualEffects() {
         const canvasEl = document.getElementById('gameCanvas');
@@ -130,7 +171,22 @@
     // 장애물(수비수) 데이터 구조 및 관리
     const obstacles = [];
     const obstacleSpawnRate = 30; // z축 거리당 생성 빈도
-    let nextObstacleZ = 50; // 첫 장애물 생성 z위치
+    let nextObstacleZ = 600; // 랜덤 생성 시작 위치 (시나리오 이후)
+
+    // 시나리오 이벤트 데이터 (튜토리얼 및 NPC 장애물 배치)
+    const scenarioEvents = [
+        { z: 100, type: 'message', text: "수비수가 다가옵니다. A/D 키로 회피하세요!", triggered: false },
+        { z: 150, type: 'obstacle', laneIndex: 1, triggered: false },
+        { z: 200, type: 'message', text: "박자에 맞춰 마우스 좌/우 클릭 시 속도가 증가합니다.", triggered: false },
+        { z: 250, type: 'obstacle', laneIndex: 0, triggered: false },
+        { z: 250, type: 'obstacle', laneIndex: 2, triggered: false },
+        { z: 400, type: 'message', text: "점점 더 많은 수비수가 몰려옵니다. 리듬을 유지하세요!", triggered: false },
+        { z: 450, type: 'obstacle', laneIndex: 1, triggered: false },
+        { z: 470, type: 'obstacle', laneIndex: 0, triggered: false },
+        { z: 500, type: 'message', text: "과거의 그림자(NPC)들이 당신을 쫓습니다.", triggered: false }
+    ];
+    let scenarioMessage = "";
+    let scenarioMessageTimer = 0;
 
     // 3D 공간의 (X, Y, Z) 좌표를 2D 화면 좌표로 변환하는 원근 투영(Perspective Projection) 함수
     function project3DTo2D(p, width, height) {
@@ -191,6 +247,10 @@
         // event.button: 0 (LMB), 2 (RMB)
         const buttonType = event.button === 0 ? 'LMB' : (event.button === 2 ? 'RMB' : 'OTHER');
         if (buttonType === 'OTHER') return;
+
+        // 효과음 재생 (Web Audio API)
+        initAudio();
+        playFootstepSound(buttonType);
 
         const timestamp = performance.now();
         inputBuffer.push({ type: buttonType, time: timestamp });
@@ -359,6 +419,30 @@
         // 부드러운 틸트 복귀
         camera.roll += (targetRoll - camera.roll) * 0.1;
 
+        // 시나리오 이벤트 처리
+        for (let event of scenarioEvents) {
+            if (!event.triggered && camera.z >= event.z) {
+                event.triggered = true;
+                if (event.type === 'message') {
+                    scenarioMessage = event.text;
+                    scenarioMessageTimer = 3000; // 3초간 표시
+                } else if (event.type === 'obstacle') {
+                    obstacles.push({
+                        x: track.lanes[event.laneIndex],
+                        y: 0,
+                        z: event.z + 20, // 플레이어 조금 앞에서 등장하도록
+                        width: 1.5,
+                        height: 2.5,
+                        color: '#ff5500', // NPC 장애물 색상 구분
+                        passed: false
+                    });
+                }
+            }
+        }
+        if (scenarioMessageTimer > 0) {
+            scenarioMessageTimer -= deltaTime;
+        }
+
         // 장애물 생성 (플레이어 앞쪽으로 일정 거리마다 생성)
         if (camera.z + track.renderDistance > nextObstacleZ) {
             const laneIndex = Math.floor(Math.random() * track.lanes.length);
@@ -514,6 +598,22 @@
                 ctx.fillStyle = '#fff';
                 ctx.fillText(`${combo} COMBO!`, canvas.width / 2, canvas.height / 3 + 40);
             }
+        }
+
+        // 시나리오/튜토리얼 메시지 표시 (화면 중앙 상단)
+        if (scenarioMessageTimer > 0 && scenarioMessage) {
+            const msgAlpha = Math.min(1, scenarioMessageTimer / 500);
+            ctx.globalAlpha = msgAlpha;
+            ctx.font = 'bold 30px Arial';
+            ctx.textAlign = 'center';
+            
+            // 텍스트 배경 (검정 박스)
+            const textWidth = ctx.measureText(scenarioMessage).width;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(canvas.width / 2 - textWidth / 2 - 20, canvas.height / 4 - 40, textWidth + 40, 60);
+
+            ctx.fillStyle = '#fff';
+            ctx.fillText(scenarioMessage, canvas.width / 2, canvas.height / 4);
         }
         
         ctx.restore();
