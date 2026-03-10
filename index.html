@@ -9,6 +9,30 @@
 <body>
     <canvas id="gameCanvas"></canvas>
     <div id="vignette"></div>
+    <div id="ui-layer">
+        <div id="title-screen" class="screen active">
+            <h1>ZeroBaek</h1>
+            <p>클릭하여 시작 (마우스 고정)</p>
+        </div>
+        <div id="tutorial-screen" class="screen">
+            <h2>튜토리얼</h2>
+            <p>W, A, S, D로 이동하고 마우스로 시야를 회전하세요.</p>
+            <p>리듬에 맞춰 마우스 좌클릭(LMB) 또는 우클릭(RMB)을 하면 속도가 증가합니다.</p>
+            <p>수비수(빨간색 박스)를 피하세요.</p>
+            <p>준비가 되면 다시 클릭하세요.</p>
+        </div>
+        <div id="ending-screen" class="screen">
+            <h2>엔딩</h2>
+            <p>과거의 자아를 마주했습니다.</p>
+            <p>플레이해주셔서 감사합니다.</p>
+            <div id="ending-credits" class="credits-container">
+                <p>--- Credits ---</p>
+                <p>Director: ZeroBaek</p>
+                <p>Developer: AcidClaw</p>
+                <p>Special Thanks: MistyClawn</p>
+            </div>
+        </div>
+    </div>
     <script type="module" src="js/main.js"></script>
 </body>
 </html>

@@ -31,3 +31,72 @@ body, html {
     filter: sepia(0.3) hue-rotate(180deg) saturate(1.2); /* 초기 차가운 색온도(Color Grading) */
     transition: filter 0.5s ease-out;
 }
+
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* UI 레이어는 클릭을 막지 않음 (캔버스가 받도록) */
+    z-index: 20;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.screen {
+    display: none;
+    color: white;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 40px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.screen.active {
+    display: block;
+}
+
+.screen h1 {
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+
+.screen h2 {
+    font-size: 36px;
+    margin-bottom: 20px;
+}
+
+.screen p {
+    font-size: 20px;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+/* Ending Screen Credits */
+.credits-container {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+    animation: fadeIn 3s ease-in-out forwards;
+    opacity: 0;
+}
+
+.credits-container p {
+    font-size: 16px;
+    color: #ccc;
+}
+
+@keyframes fadeIn {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Ending specific filters */
+#gameCanvas.ending-filter {
+    filter: sepia(0.8) hue-rotate(30deg) saturate(2.0) blur(2px) !important;
+    transition: filter 3s ease-out;
+}
+

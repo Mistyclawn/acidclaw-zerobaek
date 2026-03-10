@@ -5,6 +5,53 @@
     let canvas, ctx;
     let lastTime = 0;
 
+    // 게임 상태 (TITLE, TUTORIAL, PLAYING, ENDING)
+    let gameState = 'TITLE';
+    let totalPlayTime = 0; 
+    const ENDING_TIME_LIMIT = 90 * 60 * 1000; // 90분 (단위: ms)
+
+    function changeState(newState) {
+        gameState = newState;
+        
+        // UI 화면 토글
+        const screens = document.querySelectorAll('.screen');
+        screens.forEach(screen => screen.classList.remove('active'));
+        
+        if (newState === 'TITLE') {
+            document.getElementById('title-screen').classList.add('active');
+        } else if (newState === 'TUTORIAL') {
+            document.getElementById('tutorial-screen').classList.add('active');
+        } else if (newState === 'ENDING') {
+            document.getElementById('ending-screen').classList.add('active');
+            // 엔딩 화면 진입 시 필터 클래스 추가
+            const canvasEl = document.getElementById('gameCanvas');
+            if (canvasEl) {
+                canvasEl.classList.add('ending-filter');
+            }
+            // 멈추기
+            currentSpeed = 0;
+            velocity.x = 0;
+            velocity.z = 0;
+            // 과거의 자아 렌더링을 위해 장애물 리스트 초기화 후 특수 객체 추가
+            obstacles.length = 0;
+            obstacles.push({
+                x: camera.x,
+                y: 0,
+                z: camera.z + 20, // 바로 앞에 배치
+                width: 2,
+                height: 3,
+                color: '#ffdd00', // 과거의 자아는 황금빛
+                passed: false,
+                isPastSelf: true
+            });
+        }
+        
+        // 상태별 추가 초기화
+        if (newState === 'PLAYING') {
+            // 게임 재시작 시 초기화할 요소가 있다면 추가
+        }
+    }
+
     // 카메라 (FPS 시점)
     const camera = {
         x: 0,
@@ -196,9 +243,20 @@
 
     function initPointerLock() {
         canvas.addEventListener('mousedown', (e) => {
-            if (document.pointerLockElement !== canvas) {
+            if (gameState === 'TITLE') {
+                changeState('TUTORIAL');
+                return;
+            } else if (gameState === 'TUTORIAL') {
+                changeState('PLAYING');
                 canvas.requestPointerLock();
-            } else {
+                return;
+            } else if (gameState === 'ENDING') {
+                return;
+            }
+
+            if (document.pointerLockElement !== canvas && gameState === 'PLAYING') {
+                canvas.requestPointerLock();
+            } else if (gameState === 'PLAYING') {
                 onMouseClick(e);
             }
         });
@@ -234,6 +292,17 @@
     }
 
     function update(deltaTime) {
+        if (gameState !== 'PLAYING') return;
+
+        totalPlayTime += deltaTime;
+        if (totalPlayTime >= ENDING_TIME_LIMIT) {
+            changeState('ENDING');
+            if (document.pointerLockElement === canvas) {
+                document.exitPointerLock();
+            }
+            return;
+        }
+
         // 리듬 타이머 업데이트
         const now = performance.now();
         if (now > nextBeatTime) {
