@@ -126,6 +126,26 @@
         osc.stop(audioCtx.currentTime + 0.1);
     }
 
+    function playCrashSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.3);
+        
+        osc.type = 'sawtooth';
+        
+        gainNode.gain.setValueAtTime(0.8, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.3);
+    }
+
     // 시각적 효과 업데이트 함수 (색온도, 화면 가장자리 글로우)
     function updateVisualEffects() {
         const canvasEl = document.getElementById('gameCanvas');
@@ -476,6 +496,9 @@
                         lastJudgment = 'CRASH!';
                         judgmentTimer = 1000;
                         updateVisualEffects(); // 패널티 시 글로우 효과 등 초기화
+                        
+                        initAudio();
+                        playCrashSound();
                     }
                 } else if (zDiff > 1.0) {
                     // 장애물을 무사히 통과함
