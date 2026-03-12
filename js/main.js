@@ -146,6 +146,34 @@
         osc.stop(audioCtx.currentTime + 0.3);
     }
 
+    function playComboSound(currentCombo) {
+        if (!audioCtx) return;
+        
+        // 10콤보, 20콤보 등 10단위에서만 재생
+        if (currentCombo > 0 && currentCombo % 10 === 0) {
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            // 콤보에 비례하여 높은 음 (환호성/성공 느낌의 맑은 소리)
+            const baseFreq = 400 + (currentCombo * 10);
+            osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(baseFreq * 1.5, audioCtx.currentTime + 0.1);
+            osc.frequency.linearRampToValueAtTime(baseFreq * 2.0, audioCtx.currentTime + 0.3);
+            
+            osc.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.1);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+            
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.5);
+        }
+    }
+
     // 시각적 효과 업데이트 함수 (색온도, 화면 가장자리 글로우)
     function updateVisualEffects() {
         const canvasEl = document.getElementById('gameCanvas');
@@ -294,10 +322,12 @@
             lastJudgment = 'PERFECT';
             combo++;
             currentSpeed += 0.05; // 속도 증가
+            playComboSound(combo);
         } else if (closestDiff <= GREAT) {
             lastJudgment = 'GREAT';
             combo++;
             currentSpeed += 0.02;
+            playComboSound(combo);
         } else if (closestDiff <= GOOD) {
             lastJudgment = 'GOOD';
             combo = 0; // 콤보 초기화
