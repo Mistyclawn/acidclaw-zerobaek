@@ -469,6 +469,10 @@
         // 부드러운 틸트 복귀
         camera.roll += (targetRoll - camera.roll) * 0.1;
 
+        // 동적 FOV 변화 (속도감 연출)
+        const targetFov = (Math.PI / 3) + (Math.max(0, currentSpeed - baseSpeed) / (baseSpeed * 2)) * (Math.PI / 6);
+        camera.fov += (targetFov - camera.fov) * 0.1;
+
         // 시나리오 이벤트 처리
         for (let event of scenarioEvents) {
             if (!event.triggered && camera.z >= event.z) {
