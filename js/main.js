@@ -21,6 +21,8 @@
             document.getElementById('title-screen').classList.add('active');
         } else if (newState === 'TUTORIAL') {
             document.getElementById('tutorial-screen').classList.add('active');
+        } else if (newState === 'PAUSED') {
+            document.getElementById('pause-screen').classList.add('active');
         } else if (newState === 'ENDING') {
             document.getElementById('ending-screen').classList.add('active');
             // 엔딩 화면 진입 시 필터 클래스 추가
@@ -236,6 +238,55 @@
     let scenarioMessage = "";
     let scenarioMessageTimer = 0;
 
+    // Starfield (배경 별 효과)
+    const stars = [];
+    const numStars = 500;
+    const starRenderDistance = 200; 
+    
+    function initStars() {
+        for (let i = 0; i < numStars; i++) {
+            stars.push({
+                x: (Math.random() - 0.5) * 100, 
+                y: (Math.random() - 0.5) * 60,  
+                z: camera.z + Math.random() * starRenderDistance,
+                size: Math.random() * 1.5 + 0.5,
+                alpha: Math.random()
+            });
+        }
+    }
+
+    function updateStars() {
+        // 별들은 월드 좌표계에 고정되어 있고 카메라가 지나가는 방식
+        for (let star of stars) {
+            // 카메라 뒤로 넘어간 별을 앞으로 재배치 (무한 루프)
+            if (star.z < camera.z - 5) {
+                star.z += starRenderDistance;
+                star.x = camera.x + (Math.random() - 0.5) * 100; // 카메라 X축 따라 이동
+                star.y = (Math.random() - 0.5) * 60;
+            }
+        }
+    }
+    
+    function drawStars() {
+        ctx.fillStyle = '#fff';
+        for (let star of stars) {
+            const p = project3DTo2D(star, canvas.width, canvas.height);
+            if (p) {
+                // 거리에 따른 투명도 조절
+                const dist = star.z - camera.z;
+                const alpha = Math.max(0, 1 - (dist / starRenderDistance)) * star.alpha;
+                
+                ctx.globalAlpha = alpha;
+                ctx.beginPath();
+                // 원근감 크기 적용 (기본 크기 조정)
+                const radius = Math.max(0.5, star.size * p.scale * 150); 
+                ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.globalAlpha = 1.0;
+    }
+
     // 3D 공간의 (X, Y, Z) 좌표를 2D 화면 좌표로 변환하는 원근 투영(Perspective Projection) 함수
     function project3DTo2D(p, width, height) {
         // 1. 카메라 이동 적용
@@ -360,6 +411,10 @@
                 changeState('PLAYING');
                 canvas.requestPointerLock();
                 return;
+            } else if (gameState === 'PAUSED') {
+                changeState('PLAYING');
+                canvas.requestPointerLock();
+                return;
             } else if (gameState === 'ENDING') {
                 return;
             }
@@ -376,6 +431,9 @@
                 document.addEventListener('mousemove', onMouseMove, false);
             } else {
                 document.removeEventListener('mousemove', onMouseMove, false);
+                if (gameState === 'PLAYING') {
+                    changeState('PAUSED');
+                }
             }
         });
     }
@@ -412,6 +470,9 @@
             }
             return;
         }
+
+        // 별 위치 업데이트 (배경)
+        if (typeof updateStars === 'function') updateStars();
 
         // 리듬 타이머 업데이트
         const now = performance.now();
@@ -552,6 +613,9 @@
         ctx.fillStyle = '#111';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
+        // 배경 별 그리기
+        if (typeof drawStars === 'function') drawStars();
+
         // 다가오는 트랙(레일/그리드) 렌더링
         ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
         ctx.lineWidth = 2;
@@ -631,6 +695,12 @@
         ctx.textAlign = 'left';
         ctx.fillText(`COMBO: ${combo}`, 20, 40);
         ctx.fillText(`SPEED: ${currentSpeed.toFixed(2)}`, 20, 70);
+        
+        // 진행 시간 표시
+        const minutes = Math.floor(totalPlayTime / 60000);
+        const seconds = Math.floor((totalPlayTime % 60000) / 1000);
+        const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        ctx.fillText(`TIME: ${timeString}`, 20, 100);
 
         // 판정 결과 표시 (가운데 상단, 페이드 아웃 효과)
         if (judgmentTimer > 0) {
@@ -700,6 +770,9 @@
 
         initPointerLock();
         initKeyboard();
+        
+        // 배경 별 초기화
+        if (typeof initStars === 'function') initStars();
 
         // 메인 게임 루프 시작
         requestAnimationFrame((timestamp) => {
