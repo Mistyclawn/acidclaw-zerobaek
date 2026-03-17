@@ -341,7 +341,7 @@
     }
 
     function onMouseClick(event) {
-        if (document.pointerLockElement !== canvas) return;
+        if (!event.isTouch && document.pointerLockElement !== canvas) return;
         
         // event.button: 0 (LMB), 2 (RMB)
         const buttonType = event.button === 0 ? 'LMB' : (event.button === 2 ? 'RMB' : 'OTHER');
@@ -452,6 +452,63 @@
             if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = false;
             if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = false;
         });
+    }
+
+    function initTouch() {
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            
+            if (gameState === 'TITLE') {
+                changeState('TUTORIAL');
+                return;
+            } else if (gameState === 'TUTORIAL') {
+                changeState('PLAYING');
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(err => console.log(err));
+                }
+                return;
+            } else if (gameState === 'PAUSED') {
+                changeState('PLAYING');
+                return;
+            } else if (gameState === 'ENDING') {
+                return;
+            }
+
+            if (gameState === 'PLAYING') {
+                const touch = e.changedTouches[0];
+                const buttonType = touch.clientX < canvas.width / 2 ? 'LMB' : 'RMB';
+                
+                onMouseClick({ button: buttonType === 'LMB' ? 0 : 2, isTouch: true });
+
+                lastTouchX = touch.clientX;
+                lastTouchY = touch.clientY;
+            }
+        }, { passive: false });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            if (gameState === 'PLAYING') {
+                e.preventDefault();
+                const currentX = e.touches[0].clientX;
+                const currentY = e.touches[0].clientY;
+                
+                const movementX = currentX - lastTouchX;
+                const movementY = currentY - lastTouchY;
+                
+                const touchSensitivity = mouseSensitivity * 2.5;
+                camera.yaw -= movementX * touchSensitivity;
+                camera.pitch -= movementY * touchSensitivity;
+
+                const maxPitch = Math.PI / 2.2;
+                if (camera.pitch > maxPitch) camera.pitch = maxPitch;
+                if (camera.pitch < -maxPitch) camera.pitch = -maxPitch;
+                
+                lastTouchX = currentX;
+                lastTouchY = currentY;
+            }
+        }, { passive: false });
     }
 
     function resizeCanvas() {
@@ -770,6 +827,7 @@
 
         initPointerLock();
         initKeyboard();
+        if (typeof initTouch === 'function') initTouch();
         
         // 배경 별 초기화
         if (typeof initStars === 'function') initStars();
