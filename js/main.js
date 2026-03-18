@@ -19,6 +19,12 @@
         
         if (newState === 'TITLE') {
             document.getElementById('title-screen').classList.add('active');
+            const bestTime = parseFloat(localStorage.getItem('zerobaek_best_time')) || 0;
+            if (bestTime > 0) {
+                const minutes = Math.floor(bestTime / 60000);
+                const seconds = Math.floor((bestTime % 60000) / 1000);
+                document.getElementById('best-time-display').innerText = `Best Time: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
         } else if (newState === 'TUTORIAL') {
             document.getElementById('tutorial-screen').classList.add('active');
         } else if (newState === 'PAUSED') {
@@ -520,6 +526,11 @@
         if (gameState !== 'PLAYING') return;
 
         totalPlayTime += deltaTime;
+        const currentBest = parseFloat(localStorage.getItem('zerobaek_best_time')) || 0;
+        if (totalPlayTime > currentBest) {
+            localStorage.setItem('zerobaek_best_time', totalPlayTime);
+        }
+
         if (totalPlayTime >= ENDING_TIME_LIMIT) {
             changeState('ENDING');
             if (document.pointerLockElement === canvas) {
