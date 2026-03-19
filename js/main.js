@@ -405,7 +405,7 @@
 
         updateVisualEffects(); // 콤보 변화에 따른 시각적 효과 갱신
 
-        console.log(`Input: ${buttonType}, Diff: ${closestDiff.toFixed(2)}ms, Judgment: ${lastJudgment}, Combo: ${combo}`);
+        // console.log(`Input: ${buttonType}, Diff: ${closestDiff.toFixed(2)}ms, Judgment: ${lastJudgment}, Combo: ${combo}`);
     }
 
     function initPointerLock() {
@@ -825,7 +825,7 @@
     }
 
     function init() {
-        console.log('ZeroBaek 게임 초기화');
+        // console.log('ZeroBaek 게임 초기화');
         canvas = document.getElementById('gameCanvas');
         ctx = canvas.getContext('2d');
 
