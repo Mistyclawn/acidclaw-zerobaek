@@ -757,6 +757,12 @@
     function drawHUD() {
         ctx.save();
         
+        // 텍스트 그림자 효과 추가 (시각적 폴리싱)
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+
         // 콤보 표시
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 24px Arial';

@@ -100,3 +100,12 @@ body, html {
     transition: filter 3s ease-out;
 }
 
+/* Blinking text for start screen */
+.blink {
+    animation: blinker 1.5s cubic-bezier(.5, 0, 1, 1) infinite alternate;
+}
+
+@keyframes blinker {
+    to { opacity: 0; }
+}
+
