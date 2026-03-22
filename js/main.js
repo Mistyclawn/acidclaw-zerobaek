@@ -31,6 +31,15 @@
             document.getElementById('pause-screen').classList.add('active');
         } else if (newState === 'ENDING') {
             document.getElementById('ending-screen').classList.add('active');
+            
+            // 기록 표시
+            const recordEl = document.getElementById('ending-record');
+            if (recordEl) {
+                const minutes = Math.floor(totalPlayTime / 60000);
+                const seconds = Math.floor((totalPlayTime % 60000) / 1000);
+                recordEl.innerText = `최종 생존 시간: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+
             // 엔딩 화면 진입 시 필터 클래스 추가
             const canvasEl = document.getElementById('gameCanvas');
             if (canvasEl) {
