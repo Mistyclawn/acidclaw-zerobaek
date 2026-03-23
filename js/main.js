@@ -302,6 +302,61 @@
         ctx.globalAlpha = 1.0;
     }
 
+    // Rain Particles (비 내리는 날씨 효과)
+    const rainParticles = [];
+    const numRainDrops = 300;
+    const rainRenderDistance = 150;
+
+    function initRain() {
+        for (let i = 0; i < numRainDrops; i++) {
+            rainParticles.push({
+                x: camera.x + (Math.random() - 0.5) * 80,
+                y: Math.random() * 50,
+                z: camera.z + Math.random() * rainRenderDistance,
+                speedY: -(Math.random() * 2 + 1), // Falling speed
+                length: Math.random() * 2 + 0.5,
+                alpha: Math.random() * 0.4 + 0.1
+            });
+        }
+    }
+
+    function updateRain() {
+        for (let drop of rainParticles) {
+            drop.y += drop.speedY; // Fall down
+            
+            // If drop goes below ground or camera passes it
+            if (drop.y < -5 || drop.z < camera.z - 5) {
+                drop.y = Math.random() * 20 + 10; // reset to top
+                drop.x = camera.x + (Math.random() - 0.5) * 80;
+                drop.z = camera.z + Math.random() * rainRenderDistance;
+                drop.speedY = -(Math.random() * 2 + 1);
+            }
+        }
+    }
+
+    function drawRain() {
+        ctx.strokeStyle = '#aaccff';
+        ctx.lineWidth = 1;
+        
+        for (let drop of rainParticles) {
+            const p1 = project3DTo2D(drop, canvas.width, canvas.height);
+            // bottom of drop
+            const p2 = project3DTo2D({x: drop.x, y: drop.y + drop.length, z: drop.z}, canvas.width, canvas.height);
+            
+            if (p1 && p2) {
+                const dist = drop.z - camera.z;
+                const alpha = Math.max(0, 1 - (dist / rainRenderDistance)) * drop.alpha;
+                
+                ctx.globalAlpha = alpha;
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            }
+        }
+        ctx.globalAlpha = 1.0;
+    }
+
     // 3D 공간의 (X, Y, Z) 좌표를 2D 화면 좌표로 변환하는 원근 투영(Perspective Projection) 함수
     function project3DTo2D(p, width, height) {
         // 1. 카메라 이동 적용
@@ -550,6 +605,7 @@
 
         // 별 위치 업데이트 (배경)
         if (typeof updateStars === 'function') updateStars();
+        if (typeof updateRain === 'function') updateRain();
 
         // 리듬 타이머 업데이트
         const now = performance.now();
@@ -692,6 +748,7 @@
         
         // 배경 별 그리기
         if (typeof drawStars === 'function') drawStars();
+        if (typeof drawRain === 'function') drawRain();
 
         // 다가오는 트랙(레일/그리드) 렌더링
         ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
@@ -857,6 +914,7 @@
         
         // 배경 별 초기화
         if (typeof initStars === 'function') initStars();
+        if (typeof initRain === 'function') initRain();
 
         // 메인 게임 루프 시작
         requestAnimationFrame((timestamp) => {
