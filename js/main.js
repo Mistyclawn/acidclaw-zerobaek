@@ -66,6 +66,10 @@
         // 상태별 추가 초기화
         if (newState === 'PLAYING') {
             // 게임 재시작 시 초기화할 요소가 있다면 추가
+            initAudio();
+            if (typeof playBGM === 'function') playBGM();
+        } else {
+            if (typeof stopBGM === 'function') stopBGM();
         }
     }
 
@@ -102,8 +106,55 @@
     let baseSpeed = 0.1;
     let currentSpeed = baseSpeed;
 
+    // 플로팅 텍스트 시스템
+    const floatingTexts = [];
+    function addFloatingText(text, x, y, color) {
+        floatingTexts.push({ text: text, x: x, y: y, color: color, life: 1.0 });
+    }
+    function updateFloatingTexts(deltaTime) {
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            let ft = floatingTexts[i];
+            ft.y -= (deltaTime * 0.05); // 위로 떠오름
+            ft.life -= (deltaTime / 1000);
+            if (ft.life <= 0) floatingTexts.splice(i, 1);
+        }
+    }
+
     // Web Audio API (사운드 시스템)
     let audioCtx = null;
+    let isBgmPlaying = false;
+    let bgmInterval = null;
+
+    function playBGM() {
+        if (!audioCtx || isBgmPlaying) return;
+        isBgmPlaying = true;
+        const notes = [130.81, 146.83, 164.81, 196.00]; // C3, D3, E3, G3
+        let noteIndex = 0;
+        bgmInterval = setInterval(() => {
+            if (gameState !== 'PLAYING') return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(notes[noteIndex] / 2, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+            
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.4);
+            noteIndex = (noteIndex + 1) % notes.length;
+        }, 500);
+    }
+
+    function stopBGM() {
+        if (bgmInterval) {
+            clearInterval(bgmInterval);
+            bgmInterval = null;
+        }
+        isBgmPlaying = false;
+    }
     
     function initAudio() {
         if (!audioCtx) {
@@ -444,11 +495,17 @@
             combo++;
             currentSpeed += 0.05; // 속도 증가
             playComboSound(combo);
+            if (typeof addFloatingText === 'function') {
+                addFloatingText('+1', canvas.width / 2 + (Math.random()*40-20), canvas.height / 2 + (Math.random()*40-20), '#00ffff');
+            }
         } else if (closestDiff <= GREAT) {
             lastJudgment = 'GREAT';
             combo++;
             currentSpeed += 0.02;
             playComboSound(combo);
+            if (typeof addFloatingText === 'function') {
+                addFloatingText('+1', canvas.width / 2 + (Math.random()*40-20), canvas.height / 2 + (Math.random()*40-20), '#00ff00');
+            }
         } else if (closestDiff <= GOOD) {
             lastJudgment = 'GOOD';
             combo = 0; // 콤보 초기화
@@ -606,6 +663,7 @@
         // 별 위치 업데이트 (배경)
         if (typeof updateStars === 'function') updateStars();
         if (typeof updateRain === 'function') updateRain();
+        if (typeof updateFloatingTexts === 'function') updateFloatingTexts(deltaTime);
 
         // 리듬 타이머 업데이트
         const now = performance.now();
@@ -881,6 +939,16 @@
 
             ctx.fillStyle = '#fff';
             ctx.fillText(scenarioMessage, canvas.width / 2, canvas.height / 4);
+        }
+
+        // 플로팅 텍스트 그리기
+        if (typeof floatingTexts !== 'undefined') {
+            for (let ft of floatingTexts) {
+                ctx.globalAlpha = Math.max(0, ft.life);
+                ctx.fillStyle = ft.color;
+                ctx.font = 'bold 24px Arial';
+                ctx.fillText(ft.text, ft.x, ft.y);
+            }
         }
         
         ctx.restore();
