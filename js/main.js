@@ -68,6 +68,9 @@
             // 게임 재시작 시 초기화할 요소가 있다면 추가
             initAudio();
             if (typeof playBGM === 'function') playBGM();
+            window.initialBestTime = parseFloat(localStorage.getItem('zerobaek_best_time')) || 0;
+            window.hasNewRecord = false;
+            window.newRecordTimer = 0;
         } else {
             if (typeof stopBGM === 'function') stopBGM();
         }
@@ -650,6 +653,14 @@
         const currentBest = parseFloat(localStorage.getItem('zerobaek_best_time')) || 0;
         if (totalPlayTime > currentBest) {
             localStorage.setItem('zerobaek_best_time', totalPlayTime);
+            if (window.initialBestTime > 0 && !window.hasNewRecord) {
+                window.hasNewRecord = true;
+                window.newRecordTimer = 4000; // 4초간 팝업 표시
+            }
+        }
+
+        if (window.newRecordTimer > 0) {
+            window.newRecordTimer -= deltaTime;
         }
 
         if (totalPlayTime >= ENDING_TIME_LIMIT) {
@@ -939,6 +950,23 @@
 
             ctx.fillStyle = '#fff';
             ctx.fillText(scenarioMessage, canvas.width / 2, canvas.height / 4);
+        }
+
+        // 최고 기록 갱신 알림
+        if (window.newRecordTimer > 0) {
+            const nrAlpha = Math.min(1, window.newRecordTimer / 1000); // 마지막 1초 페이드아웃
+            ctx.globalAlpha = nrAlpha;
+            ctx.font = 'bold 36px Arial';
+            ctx.textAlign = 'center';
+            
+            const nrText = "🎉 NEW RECORD! 🎉";
+            const nrWidth = ctx.measureText(nrText).width;
+            
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+            ctx.fillRect(canvas.width / 2 - nrWidth / 2 - 20, 80, nrWidth + 40, 60);
+
+            ctx.fillStyle = '#FFD700';
+            ctx.fillText(nrText, canvas.width / 2, 120);
         }
 
         // 플로팅 텍스트 그리기
