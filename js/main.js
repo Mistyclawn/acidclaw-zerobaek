@@ -91,7 +91,7 @@
     const mouseSensitivity = 0.002;
 
     // 키보드 입력 상태
-    const keys = { w: false, a: false, s: false, d: false };
+    const keys = { w: false, a: false, s: false, d: false, shift: false };
 
     // 입력 버퍼 (리듬/조작 메커니즘)
     const inputBuffer = [];
@@ -411,6 +411,58 @@
         ctx.globalAlpha = 1.0;
     }
 
+    // Speed Lines (대시 시 화면 효과)
+    const speedLines = [];
+    const numSpeedLines = 50;
+    function initSpeedLines() {
+        for (let i = 0; i < numSpeedLines; i++) {
+            speedLines.push({
+                x: (Math.random() - 0.5) * window.innerWidth * 2,
+                y: (Math.random() - 0.5) * window.innerHeight * 2,
+                length: Math.random() * 100 + 50,
+                speed: Math.random() * 20 + 10,
+                alpha: Math.random() * 0.5 + 0.1
+            });
+        }
+    }
+    
+    function drawSpeedLines() {
+        if (!keys.shift || gameState !== 'PLAYING') return;
+        
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        
+        for (let line of speedLines) {
+            const angle = Math.atan2(line.y, line.x);
+            line.x += Math.cos(angle) * line.speed;
+            line.y += Math.sin(angle) * line.speed;
+            
+            const dist = Math.sqrt(line.x * line.x + line.y * line.y);
+            const maxDist = Math.max(canvas.width, canvas.height);
+            
+            if (dist > maxDist) {
+                const spawnRadius = Math.random() * 100 + 50;
+                line.x = Math.cos(angle) * spawnRadius;
+                line.y = Math.sin(angle) * spawnRadius;
+            }
+            
+            const startX = line.x;
+            const startY = line.y;
+            const endX = line.x + Math.cos(angle) * line.length;
+            const endY = line.y + Math.sin(angle) * line.length;
+            
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+        }
+        
+        ctx.stroke();
+        ctx.restore();
+    }
+
     // 3D 공간의 (X, Y, Z) 좌표를 2D 화면 좌표로 변환하는 원근 투영(Perspective Projection) 함수
     function project3DTo2D(p, width, height) {
         // 1. 카메라 이동 적용
@@ -574,6 +626,7 @@
             if(e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = true;
             if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = true;
             if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = true;
+            if(e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.shift = true;
         });
 
         window.addEventListener('keyup', (e) => {
@@ -581,6 +634,7 @@
             if(e.code === 'KeyS' || e.code === 'ArrowDown') keys.s = false;
             if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = false;
             if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = false;
+            if(e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.shift = false;
         });
     }
 
@@ -720,8 +774,14 @@
         velocity.z *= friction;
 
         // 카메라 위치 업데이트
+        let activeSpeed = currentSpeed;
+        if (keys.shift) {
+            activeSpeed *= 1.5;
+            if (activeSpeed > baseSpeed * 4) activeSpeed = baseSpeed * 4;
+        }
+
         camera.x += velocity.x;
-        camera.z += velocity.z + (currentSpeed * (deltaTime / 16.66));
+        camera.z += velocity.z + (activeSpeed * (deltaTime / 16.66));
 
         // 온레일 트랙 범위 이탈 방지 (-3 ~ 3)
         if (camera.x < -3) { camera.x = -3; velocity.x = 0; }
@@ -733,7 +793,10 @@
         camera.roll += (targetRoll - camera.roll) * 0.1;
 
         // 동적 FOV 변화 (속도감 연출)
-        const targetFov = (Math.PI / 3) + (Math.max(0, currentSpeed - baseSpeed) / (baseSpeed * 2)) * (Math.PI / 6);
+        let targetFov = (Math.PI / 3) + (Math.max(0, currentSpeed - baseSpeed) / (baseSpeed * 2)) * (Math.PI / 6);
+        if (keys.shift) {
+            targetFov += Math.PI / 12; // Sprint 시 FOV 추가 확장
+        }
         camera.fov += (targetFov - camera.fov) * 0.1;
 
         // 시나리오 이벤트 처리
@@ -818,6 +881,7 @@
         // 배경 별 그리기
         if (typeof drawStars === 'function') drawStars();
         if (typeof drawRain === 'function') drawRain();
+        if (typeof drawSpeedLines === 'function') drawSpeedLines();
 
         // 다가오는 트랙(레일/그리드) 렌더링
         ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
@@ -1011,6 +1075,7 @@
         // 배경 별 초기화
         if (typeof initStars === 'function') initStars();
         if (typeof initRain === 'function') initRain();
+        if (typeof initSpeedLines === 'function') initSpeedLines();
 
         // 메인 게임 루프 시작
         requestAnimationFrame((timestamp) => {
