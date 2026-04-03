@@ -414,6 +414,8 @@
     // Speed Lines (대시 시 화면 효과)
     const speedLines = [];
     const numSpeedLines = 50;
+    let speedLineAlpha = 0; // 페이드 인/아웃용 투명도 변수
+
     function initSpeedLines() {
         for (let i = 0; i < numSpeedLines; i++) {
             speedLines.push({
@@ -427,12 +429,22 @@
     }
     
     function drawSpeedLines() {
-        if (!keys.shift || gameState !== 'PLAYING') return;
+        if (gameState !== 'PLAYING') return;
+
+        if (keys.shift) {
+            speedLineAlpha += 0.05;
+            if (speedLineAlpha > 1) speedLineAlpha = 1;
+        } else {
+            speedLineAlpha -= 0.05;
+            if (speedLineAlpha < 0) speedLineAlpha = 0;
+        }
+
+        if (speedLineAlpha <= 0) return;
         
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
         
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.strokeStyle = `rgba(255, 255, 255, ${0.5 * speedLineAlpha})`;
         ctx.lineWidth = 2;
         ctx.beginPath();
         
@@ -462,6 +474,9 @@
         ctx.stroke();
         ctx.restore();
     }
+
+    // Camera Shake System
+    let shakeTimer = 0;
 
     // 3D 공간의 (X, Y, Z) 좌표를 2D 화면 좌표로 변환하는 원근 투영(Perspective Projection) 함수
     function project3DTo2D(p, width, height) {
@@ -740,6 +755,10 @@
             judgmentTimer -= deltaTime;
         }
 
+        if (typeof shakeTimer !== 'undefined' && shakeTimer > 0) {
+            shakeTimer -= deltaTime;
+        }
+
         // 카메라의 시선 방향 (yaw) 기준 전진/후진, 좌우 이동 벡터 계산
         let forwardX = -Math.sin(camera.yaw);
         let forwardZ = Math.cos(camera.yaw);
@@ -857,6 +876,8 @@
                         judgmentTimer = 1000;
                         updateVisualEffects(); // 패널티 시 글로우 효과 등 초기화
                         
+                        shakeTimer = 500; // 카메라 흔들림 트리거
+
                         initAudio();
                         playCrashSound();
                     }
@@ -874,6 +895,14 @@
     }
 
     function draw() {
+        ctx.save();
+        if (typeof shakeTimer !== 'undefined' && shakeTimer > 0) {
+            const intensity = (shakeTimer / 500) * 15; // max 15px 흔들림
+            const dx = (Math.random() - 0.5) * intensity * 2;
+            const dy = (Math.random() - 0.5) * intensity * 2;
+            ctx.translate(dx, dy);
+        }
+
         // 화면 지우기 (배경)
         ctx.fillStyle = '#111';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -951,6 +980,8 @@
 
         // 4. UI / HUD 렌더링 (2D 오버레이)
         drawHUD();
+        
+        ctx.restore();
     }
 
     function drawHUD() {
