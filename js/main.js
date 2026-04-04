@@ -90,8 +90,14 @@
     // 마우스 감도
     const mouseSensitivity = 0.002;
 
+    // 점프 관련 변수
+    let velocityY = 0;
+    const gravity = 0.02;
+    const jumpPower = 0.4;
+    let isJumping = false;
+
     // 키보드 입력 상태
-    const keys = { w: false, a: false, s: false, d: false, shift: false };
+    const keys = { w: false, a: false, s: false, d: false, shift: false, space: false };
 
     // 입력 버퍼 (리듬/조작 메커니즘)
     const inputBuffer = [];
@@ -642,6 +648,7 @@
             if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = true;
             if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = true;
             if(e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.shift = true;
+            if(e.code === 'Space') keys.space = true;
         });
 
         window.addEventListener('keyup', (e) => {
@@ -650,6 +657,7 @@
             if(e.code === 'KeyA' || e.code === 'ArrowLeft') keys.a = false;
             if(e.code === 'KeyD' || e.code === 'ArrowRight') keys.d = false;
             if(e.code === 'ShiftLeft' || e.code === 'ShiftRight') keys.shift = false;
+            if(e.code === 'Space') keys.space = false;
         });
     }
 
@@ -799,6 +807,23 @@
             if (activeSpeed > baseSpeed * 4) activeSpeed = baseSpeed * 4;
         }
 
+        // 점프 로직 적용
+        if (keys.space && !isJumping) {
+            isJumping = true;
+            velocityY = jumpPower;
+        }
+
+        if (isJumping) {
+            camera.y += velocityY * (deltaTime / 16.66);
+            velocityY -= gravity * (deltaTime / 16.66);
+
+            if (camera.y <= 1.5) { // 원래 높이로 복귀
+                camera.y = 1.5;
+                isJumping = false;
+                velocityY = 0;
+            }
+        }
+
         camera.x += velocity.x;
         camera.z += velocity.z + (activeSpeed * (deltaTime / 16.66));
 
@@ -866,20 +891,25 @@
                 if (Math.abs(zDiff) < 1.0) {
                     // X 좌표 (레인) 겹침 판정
                     if (Math.abs(camera.x - obs.x) < 1.2) {
-                        obs.passed = true;
-                        obs.color = '#550000'; // 충돌 시 색상 어둡게 변경
-                        
-                        // 패널티 적용
-                        combo = 0;
-                        currentSpeed = baseSpeed * 0.3; // 속도 대폭 감소
-                        lastJudgment = 'CRASH!';
-                        judgmentTimer = 1000;
-                        updateVisualEffects(); // 패널티 시 글로우 효과 등 초기화
-                        
-                        shakeTimer = 500; // 카메라 흔들림 트리거
+                        // 점프 중일 때 높이(Y좌표)를 비교하여 회피 처리
+                        if (isJumping && camera.y > 3.0) {
+                            // 회피 성공
+                        } else {
+                            obs.passed = true;
+                            obs.color = '#550000'; // 충돌 시 색상 어둡게 변경
+                            
+                            // 패널티 적용
+                            combo = 0;
+                            currentSpeed = baseSpeed * 0.3; // 속도 대폭 감소
+                            lastJudgment = 'CRASH!';
+                            judgmentTimer = 1000;
+                            updateVisualEffects(); // 패널티 시 글로우 효과 등 초기화
+                            
+                            shakeTimer = 500; // 카메라 흔들림 트리거
 
-                        initAudio();
-                        playCrashSound();
+                            initAudio();
+                            playCrashSound();
+                        }
                     }
                 } else if (zDiff > 1.0) {
                     // 장애물을 무사히 통과함
