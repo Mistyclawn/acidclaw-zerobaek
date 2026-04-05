@@ -483,6 +483,7 @@
 
     // Camera Shake System
     let shakeTimer = 0;
+    let invincibleTimer = 0;
 
     // 3D 공간의 (X, Y, Z) 좌표를 2D 화면 좌표로 변환하는 원근 투영(Perspective Projection) 함수
     function project3DTo2D(p, width, height) {
@@ -766,6 +767,9 @@
         if (typeof shakeTimer !== 'undefined' && shakeTimer > 0) {
             shakeTimer -= deltaTime;
         }
+        if (typeof invincibleTimer !== 'undefined' && invincibleTimer > 0) {
+            invincibleTimer -= deltaTime;
+        }
 
         // 카메라의 시선 방향 (yaw) 기준 전진/후진, 좌우 이동 벡터 계산
         let forwardX = -Math.sin(camera.yaw);
@@ -894,6 +898,9 @@
                         // 점프 중일 때 높이(Y좌표)를 비교하여 회피 처리
                         if (isJumping && camera.y > 3.0) {
                             // 회피 성공
+                        } else if (typeof invincibleTimer !== 'undefined' && invincibleTimer > 0) {
+                            // 무적 상태이므로 충돌 무시 (통과 처리)
+                            obs.passed = true;
                         } else {
                             obs.passed = true;
                             obs.color = '#550000'; // 충돌 시 색상 어둡게 변경
@@ -906,6 +913,7 @@
                             updateVisualEffects(); // 패널티 시 글로우 효과 등 초기화
                             
                             shakeTimer = 500; // 카메라 흔들림 트리거
+                            invincibleTimer = 2000; // 2초간 무적
 
                             initAudio();
                             playCrashSound();
@@ -1010,6 +1018,14 @@
 
         // 4. UI / HUD 렌더링 (2D 오버레이)
         drawHUD();
+
+        // 무적 시간 깜빡임 효과 (화면 붉은색 점멸)
+        if (typeof invincibleTimer !== 'undefined' && invincibleTimer > 0) {
+            if (Math.floor(invincibleTimer / 100) % 2 === 0) {
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
         
         ctx.restore();
     }
