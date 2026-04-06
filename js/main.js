@@ -114,6 +114,8 @@
     
     let baseSpeed = 0.1;
     let currentSpeed = baseSpeed;
+    
+    let score = 0;
 
     // 플로팅 텍스트 시스템
     const floatingTexts = [];
@@ -251,6 +253,21 @@
         }
     }
 
+    function playCoinSound() {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1500, audioCtx.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.1);
+    }
+
     // 시각적 효과 업데이트 함수 (색온도, 화면 가장자리 글로우)
     function updateVisualEffects() {
         const canvasEl = document.getElementById('gameCanvas');
@@ -297,6 +314,11 @@
     const obstacles = [];
     const obstacleSpawnRate = 30; // z축 거리당 생성 빈도
     let nextObstacleZ = 600; // 랜덤 생성 시작 위치 (시나리오 이후)
+
+    // 코인(아이템) 데이터 구조 및 관리
+    const coins = [];
+    const coinSpawnRate = 25;
+    let nextCoinZ = 150;
 
     // 시나리오 이벤트 데이터 (튜토리얼 및 NPC 장애물 배치)
     const scenarioEvents = [
@@ -886,6 +908,40 @@
             nextObstacleZ += obstacleSpawnRate + Math.random() * 20;
         }
 
+        // 코인 생성
+        if (camera.z + track.renderDistance > nextCoinZ) {
+            const laneIndex = Math.floor(Math.random() * track.lanes.length);
+            coins.push({
+                x: track.lanes[laneIndex],
+                y: 0.5,
+                z: nextCoinZ,
+                radius: 0.4,
+                collected: false
+            });
+            nextCoinZ += coinSpawnRate + Math.random() * 10;
+        }
+
+        // 코인 충돌 판정
+        for (let i = 0; i < coins.length; i++) {
+            const coin = coins[i];
+            if (!coin.collected) {
+                const zDiff = camera.z - coin.z;
+                if (Math.abs(zDiff) < 1.0) {
+                    if (Math.abs(camera.x - coin.x) < 1.0) {
+                        if (isJumping && camera.y > coin.y + 1.5) continue;
+                        
+                        coin.collected = true;
+                        score += 100;
+                        initAudio();
+                        playCoinSound();
+                        if (typeof addFloatingText === 'function') {
+                            addFloatingText('+100', canvas.width / 2, canvas.height / 2 - 50, '#FFD700');
+                        }
+                    }
+                }
+            }
+        }
+
         // 장애물 충돌 판정
         for (let i = 0; i < obstacles.length; i++) {
             const obs = obstacles[i];
@@ -929,6 +985,13 @@
         // 지나친 장애물 메모리 해제
         while(obstacles.length > 0 && obstacles[0].z < camera.z - 10) {
             obstacles.shift();
+        }
+
+        // 지나친 코인 메모리 해제
+        for (let i = coins.length - 1; i >= 0; i--) {
+            if (coins[i].z < camera.z - 10 || coins[i].collected) {
+                coins.splice(i, 1);
+            }
         }
     }
 
@@ -1016,6 +1079,27 @@
             }
         }
 
+        // 코인 그리기
+        const visibleCoins = coins.filter(c => c.z >= camera.z && c.z <= endZ && !c.collected);
+        visibleCoins.sort((a, b) => b.z - a.z);
+        
+        for (let coin of visibleCoins) {
+            const p = project3DTo2D({ x: coin.x, y: coin.y, z: coin.z }, canvas.width, canvas.height);
+            if (p) {
+                const r = coin.radius * 500 * p.scale;
+                ctx.fillStyle = '#FFD700'; // 황금색
+                ctx.globalAlpha = 0.9;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
         // 4. UI / HUD 렌더링 (2D 오버레이)
         drawHUD();
 
@@ -1043,14 +1127,15 @@
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 24px Arial';
         ctx.textAlign = 'left';
-        ctx.fillText(`COMBO: ${combo}`, 20, 40);
-        ctx.fillText(`SPEED: ${currentSpeed.toFixed(2)}`, 20, 70);
+        ctx.fillText(`SCORE: ${score}`, 20, 40);
+        ctx.fillText(`COMBO: ${combo}`, 20, 70);
+        ctx.fillText(`SPEED: ${currentSpeed.toFixed(2)}`, 20, 100);
         
         // 진행 시간 표시
         const minutes = Math.floor(totalPlayTime / 60000);
         const seconds = Math.floor((totalPlayTime % 60000) / 1000);
         const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        ctx.fillText(`TIME: ${timeString}`, 20, 100);
+        ctx.fillText(`TIME: ${timeString}`, 20, 130);
 
         // 판정 결과 표시 (가운데 상단, 페이드 아웃 효과)
         if (judgmentTimer > 0) {
