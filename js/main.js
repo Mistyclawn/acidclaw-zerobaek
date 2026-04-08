@@ -5,10 +5,11 @@
     let canvas, ctx;
     let lastTime = 0;
 
-    // 게임 상태 (TITLE, TUTORIAL, PLAYING, ENDING)
+    // 게임 상태 (TITLE, TUTORIAL, PLAYING, ENDING, GAMEOVER)
     let gameState = 'TITLE';
     let totalPlayTime = 0; 
     const ENDING_TIME_LIMIT = 90 * 60 * 1000; // 90분 (단위: ms)
+    let hp = 3; // 기본 생명력
 
     function changeState(newState) {
         gameState = newState;
@@ -29,6 +30,18 @@
             document.getElementById('tutorial-screen').classList.add('active');
         } else if (newState === 'PAUSED') {
             document.getElementById('pause-screen').classList.add('active');
+        } else if (newState === 'GAMEOVER') {
+            const gameOverScreen = document.getElementById('gameover-screen');
+            if (gameOverScreen) gameOverScreen.classList.add('active');
+            
+            // 멈추기
+            currentSpeed = 0;
+            velocity.x = 0;
+            velocity.z = 0;
+            if (typeof stopBGM === 'function') stopBGM();
+            if (document.pointerLockElement === canvas) {
+                document.exitPointerLock();
+            }
         } else if (newState === 'ENDING') {
             document.getElementById('ending-screen').classList.add('active');
             
@@ -962,6 +975,7 @@
                             obs.color = '#550000'; // 충돌 시 색상 어둡게 변경
                             
                             // 패널티 적용
+                            hp--;
                             combo = 0;
                             currentSpeed = baseSpeed * 0.3; // 속도 대폭 감소
                             lastJudgment = 'CRASH!';
@@ -973,6 +987,10 @@
 
                             initAudio();
                             playCrashSound();
+
+                            if (hp <= 0) {
+                                changeState('GAMEOVER');
+                            }
                         }
                     }
                 } else if (zDiff > 1.0) {
@@ -1130,12 +1148,13 @@
         ctx.fillText(`SCORE: ${score}`, 20, 40);
         ctx.fillText(`COMBO: ${combo}`, 20, 70);
         ctx.fillText(`SPEED: ${currentSpeed.toFixed(2)}`, 20, 100);
+        ctx.fillText(`HP: ${'❤️'.repeat(Math.max(0, hp))}`, 20, 130);
         
         // 진행 시간 표시
         const minutes = Math.floor(totalPlayTime / 60000);
         const seconds = Math.floor((totalPlayTime % 60000) / 1000);
         const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        ctx.fillText(`TIME: ${timeString}`, 20, 130);
+        ctx.fillText(`TIME: ${timeString}`, 20, 160);
 
         // 판정 결과 표시 (가운데 상단, 페이드 아웃 효과)
         if (judgmentTimer > 0) {
