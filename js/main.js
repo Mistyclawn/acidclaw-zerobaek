@@ -333,6 +333,12 @@
     const coinSpawnRate = 25;
     let nextCoinZ = 150;
 
+    // 자석(아이템) 데이터 구조 및 관리
+    const magnets = [];
+    const magnetSpawnRate = 300; // 코인보다 훨씬 드물게
+    let nextMagnetZ = 400;
+    let magnetTimer = 0; // 자석 지속 시간
+
     // 시나리오 이벤트 데이터 (튜토리얼 및 NPC 장애물 배치)
     const scenarioEvents = [
         { z: 100, type: 'message', text: "수비수가 다가옵니다. A/D 키로 회피하세요!", triggered: false },
@@ -805,6 +811,9 @@
         if (typeof invincibleTimer !== 'undefined' && invincibleTimer > 0) {
             invincibleTimer -= deltaTime;
         }
+        if (typeof magnetTimer !== 'undefined' && magnetTimer > 0) {
+            magnetTimer -= deltaTime;
+        }
 
         // 카메라의 시선 방향 (yaw) 기준 전진/후진, 좌우 이동 벡터 계산
         let forwardX = -Math.sin(camera.yaw);
@@ -918,7 +927,25 @@
                 color: '#ff0055', // 장애물(수비수) 임시 색상
                 passed: false // 충돌 여부 추적
             });
-            nextObstacleZ += obstacleSpawnRate + Math.random() * 20;
+            
+            // 난이도 스케일링: 진행 시간에 따라 생성 빈도 증가 (SpawnRate 감소)
+            let currentSpawnRate = obstacleSpawnRate - (totalPlayTime / 60000) * 10; // 1분당 10씩 감소
+            if (currentSpawnRate < 10) currentSpawnRate = 10; // 최소 생성 거리 제한
+            
+            nextObstacleZ += currentSpawnRate + Math.random() * 20;
+        }
+
+        // 자석 아이템 생성
+        if (camera.z + track.renderDistance > nextMagnetZ) {
+            const laneIndex = Math.floor(Math.random() * track.lanes.length);
+            magnets.push({
+                x: track.lanes[laneIndex],
+                y: 0.5,
+                z: nextMagnetZ,
+                radius: 0.5,
+                collected: false
+            });
+            nextMagnetZ += magnetSpawnRate + Math.random() * 100;
         }
 
         // 코인 생성
@@ -932,6 +959,40 @@
                 collected: false
             });
             nextCoinZ += coinSpawnRate + Math.random() * 10;
+        }
+
+        // 자석 아이템 충돌 판정
+        for (let i = 0; i < magnets.length; i++) {
+            const mag = magnets[i];
+            if (!mag.collected) {
+                const zDiff = camera.z - mag.z;
+                if (Math.abs(zDiff) < 1.0 && Math.abs(camera.x - mag.x) < 1.0) {
+                    if (isJumping && camera.y > mag.y + 1.5) continue;
+                    mag.collected = true;
+                    magnetTimer = 10000; // 10초간 지속
+                    initAudio();
+                    playCoinSound(); // 자석 획득 사운드 (임시)
+                    if (typeof addFloatingText === 'function') {
+                        addFloatingText('MAGNET!', canvas.width / 2, canvas.height / 2 - 80, '#FF00FF');
+                    }
+                }
+            }
+        }
+
+        // 자석 효과: 주변 코인을 끌어당김
+        if (typeof magnetTimer !== 'undefined' && magnetTimer > 0) {
+            for (let i = 0; i < coins.length; i++) {
+                let coin = coins[i];
+                if (!coin.collected) {
+                    let zDiff = coin.z - camera.z;
+                    // 앞쪽 30 거리 내의 코인만 끌어당김
+                    if (zDiff > 0 && zDiff < 30) {
+                        coin.x += (camera.x - coin.x) * 0.05;
+                        coin.z += (camera.z - coin.z) * 0.05;
+                        coin.y += (camera.y - coin.y) * 0.05;
+                    }
+                }
+            }
         }
 
         // 코인 충돌 판정
@@ -1009,6 +1070,15 @@
         for (let i = coins.length - 1; i >= 0; i--) {
             if (coins[i].z < camera.z - 10 || coins[i].collected) {
                 coins.splice(i, 1);
+            }
+        }
+
+        // 지나친 자석 메모리 해제
+        if (typeof magnets !== 'undefined') {
+            for (let i = magnets.length - 1; i >= 0; i--) {
+                if (magnets[i].z < camera.z - 10 || magnets[i].collected) {
+                    magnets.splice(i, 1);
+                }
             }
         }
     }
@@ -1097,6 +1167,29 @@
             }
         }
 
+        // 자석 아이템 그리기
+        if (typeof magnets !== 'undefined') {
+            const visibleMagnets = magnets.filter(m => m.z >= camera.z && m.z <= endZ && !m.collected);
+            visibleMagnets.sort((a, b) => b.z - a.z);
+
+            for (let mag of visibleMagnets) {
+                const p = project3DTo2D({ x: mag.x, y: mag.y, z: mag.z }, canvas.width, canvas.height);
+                if (p) {
+                    const r = mag.radius * 500 * p.scale;
+                    ctx.fillStyle = '#FF00FF'; // 자석은 마젠타색
+                    ctx.globalAlpha = 0.9;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+        }
+
         // 코인 그리기
         const visibleCoins = coins.filter(c => c.z >= camera.z && c.z <= endZ && !c.collected);
         visibleCoins.sort((a, b) => b.z - a.z);
@@ -1149,6 +1242,11 @@
         ctx.fillText(`COMBO: ${combo}`, 20, 70);
         ctx.fillText(`SPEED: ${currentSpeed.toFixed(2)}`, 20, 100);
         ctx.fillText(`HP: ${'❤️'.repeat(Math.max(0, hp))}`, 20, 130);
+        
+        if (typeof magnetTimer !== 'undefined' && magnetTimer > 0) {
+            ctx.fillStyle = '#FF00FF';
+            ctx.fillText(`MAGNET: ${(magnetTimer/1000).toFixed(1)}s`, 20, 190);
+        }
         
         // 진행 시간 표시
         const minutes = Math.floor(totalPlayTime / 60000);
